@@ -349,6 +349,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (msg.type === 'UZ_CHECK_KEY') {
+    // Popup очилганда менюни ҳам янгилаб оламиз: фойдаланувчи
+    // chrome://extensions/shortcuts да қисқартмани ўзгартирган бўлиши мумкин,
+    // Chrome эса бунинг учун ҳеч қандай ҳодиса юбормайди.
+    buildMenus().catch(() => { /* меню янгиланмаса ҳам иш давом этсин */ });
+
     getSettings()
       .then((s) => sendResponse({ ok: true, hasKey: Boolean(s.apiKey), model: s.model }))
       .catch((err) => sendResponse({ ok: false, error: describe(err) }));
@@ -495,17 +500,57 @@ async function handleSummarize(text, runId) {
 // ҳаракатда берилади: иконка босилганда, контекст менюдан танланганда ва
 // manifest'да эълон қилинган қисқартма босилганда.
 
-const MENU_ITEMS = [
-  { id: 'uz-sel-llm', title: 'Белгиланганни LLM билан ўгириш', contexts: ['selection'] },
-  { id: 'uz-sel-translit', title: 'Белгиланганни транслитерация қилиш', contexts: ['selection'] },
-  { id: 'uz-page-llm', title: 'Саҳифани LLM билан ўгириш', contexts: ['page'] },
-  { id: 'uz-page-translit', title: 'Саҳифани транслитерация қилиш', contexts: ['page'] },
-  { id: 'uz-revert', title: 'Асл матнга қайтариш', contexts: ['page', 'selection'] },
-];
+// Пункт номига қисқартма қўшилади. Уни манифестдан эмас, `commands.getAll()`
+// дан оламиз: фойдаланувчи chrome://extensions/shortcuts да ўзгартирган
+// бўлса, менюда ҳам ўзгарган қиймат кўринсин.
+//
+// Танланган матн ва саҳифа пунктлари бир вақтда кўринмайди (матн устига ўнг
+// тугма босилса Chrome фақат `selection` пунктларини чиқаради), шунинг учун
+// битта қисқартмани иккала пунктга ҳам ёзиш чалкашлик туғдирмайди.
+function menuItems(shortcuts) {
+  const key = (command) => (shortcuts[command] ? `  (${shortcuts[command]})` : '');
 
-function buildMenus() {
+  return [
+    {
+      id: 'uz-sel-llm',
+      title: `Белгиланганни LLM билан ўгириш${key('translate-llm')}`,
+      contexts: ['selection'],
+    },
+    {
+      id: 'uz-sel-translit',
+      title: `Белгиланганни транслитерация қилиш${key('translate-translit')}`,
+      contexts: ['selection'],
+    },
+    {
+      id: 'uz-page-llm',
+      title: `Саҳифани LLM билан ўгириш${key('translate-llm')}`,
+      contexts: ['page'],
+    },
+    {
+      id: 'uz-page-translit',
+      title: `Саҳифани транслитерация қилиш${key('translate-translit')}`,
+      contexts: ['page'],
+    },
+    { id: 'uz-sep', type: 'separator', contexts: ['page', 'selection'] },
+    {
+      id: 'uz-revert',
+      title: `Асл матнга қайтариш${key('revert')}`,
+      contexts: ['page', 'selection'],
+    },
+  ];
+}
+
+async function buildMenus() {
+  const shortcuts = {};
+  try {
+    for (const command of await chrome.commands.getAll()) {
+      if (command.shortcut) shortcuts[command.name] = command.shortcut;
+    }
+  } catch { /* commands API бўлмаса - қисқартмасиз номлар */ }
+
+  const items = menuItems(shortcuts);
   chrome.contextMenus.removeAll(() => {
-    for (const item of MENU_ITEMS) {
+    for (const item of items) {
       chrome.contextMenus.create({
         ...item,
         documentUrlPatterns: ['http://*/*', 'https://*/*'],
