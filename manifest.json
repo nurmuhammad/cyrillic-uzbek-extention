@@ -5,6 +5,7 @@
   "description": "Саҳифанинг асосий ўқиладиган қисмини кирилл ўзбекчага таржима қилади. Лотин ўзбекча учун офлайн транслитерация, қолгани учун OpenRouter.",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": ["https://openrouter.ai/*"],
+  "optional_host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js",
     "type": "module"

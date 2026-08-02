@@ -123,6 +123,28 @@ saҳифадаги DOM ўзгариши                    background.js ──f
 (`a/а o/о p/р c/с e/е k/к x/х y/у`) ва «русча сўз ишлатма» қоидаси бор -
 буларни олиб ташламанг, модель уларсиз аралаш матн чиқаради.
 
+### Фреймлар
+
+Кўп сайт (t.me, форумлар, embed'лар) асосий матнни **iframe** ичида кўрсатади.
+Шунинг учун `popup.js` content script'ни `allFrames: true` билан инжекция
+қилади ва ҳар бир фреймга `chrome.tabs.sendMessage(tabId, msg, {frameId})`
+орқали алоҳида мурожаат қилади.
+
+- **Ҳар фрейм ўз холатига эга.** Popup уларни `progressByFrame` да жамлайди;
+  `chrome.runtime.onMessage` даги `sender.frameId` қайси фреймдан келганини
+  айтади.
+- **Юқори фрейм = `frameId 0`.** Хулоса панели ва badge доим ўша ерда
+  кўрсатилади: iframe ичида `position: fixed` элемент iframe'нинг кичик
+  виewport'ига қисилиб қолади.
+- **Хулосани popup бошқаради**, content script эмас. `UZ_COLLECT_TEXT` энг кўп
+  матнли фреймдан матн олади, popup уни background'га юборади, натижани эса
+  `UZ_SHOW_TEXT` билан юқори фреймга беради. Шунинг учун `content.js` да
+  `runSummary` йўқ.
+- **Бошқа доменли iframe'лар** `activeTab` билан очилмайди. Улар учун
+  `optional_host_permissions: ["<all_urls>"]` бор: popup'даги «рухсат бериш»
+  тугмаси `chrome.permissions.request` ни чақиради. Бир хил доменли iframe
+  (t.me холати) қўшимча рухсатсиз ишлайди.
+
 ### Кэш, бекор қилиш, белгиланган матн
 
 - **Кэш икки қаватли** (`background.js`): хотирадаги `Map` (тез, service worker

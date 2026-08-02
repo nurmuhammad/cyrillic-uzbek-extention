@@ -334,27 +334,16 @@
     }
   }
 
-  async function runSummary(ctx) {
-    const { root, range } = resolveTarget(ctx);
-    const text = range
-      ? range.toString().trim()
-      : self.UZ_EXTRACT.readableText(root);
-    if (text.length < 80) throw new Error('Хулоса қилиш учун матн жуда кам.');
-
-    state.total = 1;
-    state.done = 0;
-    showBadge('Хулоса тайёрланмоқда…', { progress: null });
-
-    const response = await sendToBackground({
-      type: 'UZ_SUMMARIZE',
-      runId: ctx.id,
-      text,
-    });
-    if (ctx.cancelled) return;
-
-    state.summary = response.summary;
-    state.done = 1;
-    showPanel(response.summary);
+  /**
+   * Хулоса учун матн йиғади. Бу ерда тармоққа чиқилмайди: сўровни popup
+   * юборади, чунки саҳифада бир нечта фрейм бўлиши мумкин ва хулоса панели
+   * иккиламчи фреймда эмас, юқори фреймда кўрсатилиши керак.
+   */
+  function collectText(onlySelection) {
+    const range = onlySelection ? self.UZ_EXTRACT.getSelectionRange() : null;
+    if (onlySelection && !range) throw new Error('Белгиланган матн топилмади.');
+    const { root } = resolveTarget(range ? { range } : null);
+    return range ? range.toString().trim() : self.UZ_EXTRACT.readableText(root);
   }
 
   /** Жорий сеансни тўхтатади. Таржима қилиб улгурган матн жойида қолади. */
@@ -432,7 +421,6 @@
     try {
       if (mode === 'translit') await runTranslit(ctx);
       else if (mode === 'llm') await runLlm(ctx);
-      else if (mode === 'summary') await runSummary(ctx);
       else throw new Error(`Номаълум режим: ${mode}`);
 
       if (ctx.cancelled) {
@@ -441,15 +429,11 @@
       }
 
       state.status = 'done';
-      if (mode !== 'summary') {
-        showBadge(doneLabel(), {
-          progress: 1,
-          error: Boolean(state.error),
-          autoHideMs: state.error ? 8000 : 2500,
-        });
-      } else {
-        hideBadge();
-      }
+      showBadge(doneLabel(), {
+        progress: 1,
+        error: Boolean(state.error),
+        autoHideMs: state.error ? 8000 : 2500,
+      });
     } catch (err) {
       // Бекор қилиш хато эмас
       if (ctx.cancelled || err.aborted) {
@@ -518,6 +502,40 @@
       if (state.summary) showPanel(state.summary);
       sendResponse({ ok: true, hasSummary: Boolean(state.summary) });
       return false;
+    }
+
+    // Хулоса учун матн бериш. Тармоқ сўровини popup юборади.
+    if (msg.type === 'UZ_COLLECT_TEXT') {
+      loadSettings()
+        .then(() => {
+          const text = collectText(Boolean(msg.onlySelection));
+          sendResponse({ ok: true, text });
+        })
+        .catch((err) => sendResponse({ ok: false, error: err.message }));
+      return true;
+    }
+
+    // Тайёр хулосани кўрсатиш. Ҳар доим юқори фреймга юборилади.
+    if (msg.type === 'UZ_SHOW_TEXT') {
+      state.summary = msg.text;
+      showPanel(msg.text);
+      sendResponse({ ok: true });
+      return false;
+    }
+
+    if (msg.type === 'UZ_BADGE') {
+      loadSettings().then(() => {
+        if (msg.text) {
+          showBadge(msg.text, {
+            error: Boolean(msg.error),
+            autoHideMs: msg.autoHideMs || 0,
+          });
+        } else {
+          hideBadge();
+        }
+        sendResponse({ ok: true });
+      });
+      return true;
     }
 
     return undefined;

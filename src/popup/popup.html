@@ -10,6 +10,8 @@
 
     <p id="detect" class="detect">Саҳифа текширилмоқда…</p>
 
+    <p id="frames" class="hint" hidden></p>
+
     <label id="sel-row" class="check accent" hidden>
       <input id="only-selection" type="checkbox" />
       <span>Фақат белгиланган матн (<b id="sel-chars">0</b> белги)</span>
@@ -43,6 +45,10 @@
       <button id="btn-revert" class="ghost">Аслига қайтариш</button>
       <button id="btn-show-summary" class="ghost">Хулосани кўрсатиш</button>
     </div>
+
+    <button id="btn-grant" class="ghost wide" hidden>
+      Бошқа доменли iframe'лар учун рухсат бериш
+    </button>
 
     <p id="status" class="status"></p>
 

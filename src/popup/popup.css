@@ -80,6 +80,19 @@ button .sub { display: block; font-size: 11px; opacity: .8; margin-top: 2px; }
 
 [hidden] { display: none !important; }
 
+.hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+button.wide {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 12px;
+}
+
 .check {
   display: flex;
   align-items: flex-start;
