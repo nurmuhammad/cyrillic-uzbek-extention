@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Ў байроқ устида">
+  <defs>
+    <clipPath id="f-clip">
+      <rect x="4" y="4" width="120" height="120" rx="26"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#f-clip)">
+    <rect x="4" y="4" width="120" height="120" fill="#ffffff"/>
+    <rect x="4" y="4" width="120" height="34" fill="#038FD8"/>
+    <rect x="4" y="90" width="120" height="34" fill="#0DA74C"/>
+    <rect x="4" y="35" width="120" height="4" fill="#ce1126"/>
+    <rect x="4" y="89" width="120" height="4" fill="#ce1126"/>
+  </g>
+
+  <!-- Кирилл Ў: чап қўл қўлтиққа, ўнг қўл ундан ўтиб пастга тушади -->
+  <g fill="none" stroke="#12233a" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M42 50 L68 78" stroke-width="12"/>
+    <path d="M88 50 L54 100" stroke-width="12"/>
+    <!-- бреве ҳарфдан ингичкароқ - акс ҳолда доғга айланади -->
+    <path d="M50 32 C59 39 69 39 78 32" stroke-width="9"/>
+  </g>
+
+  <rect x="4" y="4" width="120" height="120" rx="26" fill="none" stroke="#12233a" stroke-width="5"/>
+</svg>

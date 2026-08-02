@@ -1,0 +1,26 @@
+# Йиғилган нусха - tools/build.ps1 дан чиқади, git'да сақланмайди
+ready/
+ready.zip
+
+# Node (ҳозир ишлатилмайди, лекин кейин керак бўлиши мумкин)
+node_modules/
+package-lock.json
+npm-debug.log*
+yarn-error.log*
+
+# Муҳаррирлар
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ОС ахлати
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.DS_Store
+
+# Вақтинчалик файллар
+*.log
+*.tmp
+*.bak

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Саҳифа ва Ў">
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="#0f2136"/>
+
+  <!-- Саҳифа -->
+  <path d="M30 20 h44 l22 22 v66 a6 6 0 0 1 -6 6 H30 a6 6 0 0 1 -6 -6 V26 a6 6 0 0 1 6 -6 z"
+        fill="#f4f7fb"/>
+  <path d="M74 20 v16 a6 6 0 0 0 6 6 h16 z" fill="#c7d6e8"/>
+
+  <!-- Матн қаторлари -->
+  <g stroke="#c2d0e0" stroke-width="6" stroke-linecap="round">
+    <path d="M38 58 H86"/>
+    <path d="M38 72 H78"/>
+  </g>
+
+  <!-- Ў нишони -->
+  <circle cx="92" cy="92" r="26" fill="#1f6feb" stroke="#0f2136" stroke-width="6"/>
+  <g fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M82 80 L93 94"/>
+    <path d="M102 80 L86 105"/>
+    <path d="M84 73 Q92 78 100 73"/>
+  </g>
+</svg>

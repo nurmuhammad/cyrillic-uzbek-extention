@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Ў байроқ устида, оқ доира ичида">
+  <defs>
+    <clipPath id="e-clip">
+      <rect x="4" y="4" width="120" height="120" rx="26"/>
+    </clipPath>
+  </defs>
+
+  <!-- Байроқ -->
+  <g clip-path="url(#e-clip)">
+    <rect x="4" y="4" width="120" height="120" fill="#ffffff"/>
+    <rect x="4" y="4" width="120" height="40" fill="#038FD8"/>
+    <rect x="4" y="84" width="120" height="40" fill="#0DA74C"/>
+    <rect x="4" y="41" width="120" height="4" fill="#ce1126"/>
+    <rect x="4" y="83" width="120" height="4" fill="#ce1126"/>
+  </g>
+
+  <!-- Оқ доира - ҳарф ҳар қандай йўлак устида ҳам ўқилиши учун -->
+  <circle cx="64" cy="64" r="39" fill="#ffffff" stroke="#12233a" stroke-width="5"/>
+
+  <!-- Кирилл Ў: чап қўл + пастга тушувчи ўнг қўл + бреве -->
+  <g fill="none" stroke="#12233a" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M47 47 L68 71"/>
+    <path d="M83 47 L55 89"/>
+    <path d="M52 34 Q64 43 76 34"/>
+  </g>
+
+  <rect x="4" y="4" width="120" height="120" rx="26" fill="none" stroke="#12233a" stroke-width="5"/>
+</svg>

@@ -1,0 +1,124 @@
+:root {
+  --bg: #ffffff;
+  --fg: #16202e;
+  --muted: #5b6a7d;
+  --line: #dde4ee;
+  --field: #ffffff;
+  --accent: #1f6feb;
+  --accent-fg: #ffffff;
+  --ok: #1a7f37;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f151d;
+    --fg: #e6edf5;
+    --muted: #94a3b8;
+    --line: #2a3646;
+    --field: #161f2b;
+    --accent: #4d9bff;
+    --accent-fg: #08101c;
+    --ok: #4ade80;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 28px 20px 60px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.55 system-ui, "Segoe UI", Arial, sans-serif;
+}
+
+main { max-width: 620px; margin: 0 auto; }
+
+h1 { margin: 0 0 20px; font-size: 20px; }
+h2 { margin: 0 0 12px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+
+section {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+label {
+  display: block;
+  margin: 12px 0 5px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+section > label:first-of-type { margin-top: 0; }
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--field);
+  color: var(--fg);
+  font: inherit;
+}
+
+input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.key-row { display: flex; gap: 8px; }
+.key-row input { flex: 1; }
+
+label.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+  margin: 0;
+}
+
+label.check input { width: auto; }
+
+.note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+code {
+  background: color-mix(in srgb, var(--line) 60%, transparent);
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+a { color: var(--accent); }
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+button {
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover { border-color: var(--accent); }
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+
+.status { font-size: 13px; color: var(--ok); }

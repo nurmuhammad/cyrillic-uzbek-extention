@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="utf-8" />
+    <title>Ўзбекча таржимон - созламалар</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Созламалар</h1>
+
+      <section>
+        <h2>OpenRouter</h2>
+
+        <label for="apiKey">API-калит</label>
+        <div class="key-row">
+          <input id="apiKey" type="password" placeholder="sk-or-v1-…" autocomplete="off" spellcheck="false" />
+          <button id="toggle-key" type="button" class="ghost">Кўрсатиш</button>
+        </div>
+        <p class="note">
+          Калит фақат шу браузерда, <code>chrome.storage.local</code> ичида сақланади.
+          У ҳеч қандай серверга юборилмайди - ягона чиқадиган жойи
+          <code>openrouter.ai</code> сўрови. Калитни
+          <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">openrouter.ai/keys</a>
+          саҳифасидан оласиз.
+        </p>
+
+        <label for="model">Модель</label>
+        <input id="model" type="text" list="model-list" spellcheck="false" />
+        <datalist id="model-list">
+          <option value="google/gemini-2.5-flash"></option>
+          <option value="openai/gpt-4.1-mini"></option>
+          <option value="deepseek/deepseek-chat"></option>
+        </datalist>
+        <p class="note">
+          Рўйхат тахминий. Аниқ номларни
+          <a href="https://openrouter.ai/models" target="_blank" rel="noreferrer">openrouter.ai/models</a>
+          дан кўчириб қўйинг. Таржима учун арзон ва тез моделлар етарли.
+        </p>
+      </section>
+
+      <section>
+        <h2>Таржима</h2>
+
+        <label for="scope">Қамров</label>
+        <select id="scope">
+          <option value="main">Фақат асосий матн (тавсия)</option>
+          <option value="page">Бутун саҳифа</option>
+        </select>
+
+        <label for="batchChars">Бир сўровдаги белгилар</label>
+        <input id="batchChars" type="number" min="300" max="6000" step="100" />
+        <p class="note">Катта қиймат - камроқ сўров, лекин хато бўлса кўпроқ матн йўқолади.</p>
+
+        <label for="concurrency">Параллел сўровлар</label>
+        <input id="concurrency" type="number" min="1" max="10" step="1" />
+        <p class="note">Кўп бўлса тезроқ, лекин 429 (rate limit) хатоси эҳтимоли ортади.</p>
+      </section>
+
+      <section>
+        <h2>Кэш</h2>
+
+        <label class="check">
+          <input id="cacheEnabled" type="checkbox" />
+          Таржима кэшда сақлансин
+        </label>
+        <p class="note">
+          Аввал таржима қилинган матн қайта сўралмайди - шу саҳифани иккинчи
+          марта очганингизда моделга пул тўланмайди. Кэш браузерда сақланади.
+          Битта таржимани мажбуран янгилаш керак бўлса, попапдаги
+          «Кэшни четлаб ўтиш» белгисидан фойдаланинг.
+        </p>
+
+        <div class="actions">
+          <button id="clear-cache" type="button" class="ghost">Кэшни тозалаш</button>
+          <span id="cache-stats" class="status"></span>
+        </div>
+      </section>
+
+      <section>
+        <h2>Хулоса</h2>
+
+        <label for="summaryStyle">Ҳажм</label>
+        <select id="summaryStyle">
+          <option value="short">Қисқа</option>
+          <option value="medium">Ўрта</option>
+          <option value="detailed">Батафсил</option>
+        </select>
+      </section>
+
+      <section>
+        <h2>Кўриниш</h2>
+        <label class="check">
+          <input id="showBadge" type="checkbox" />
+          Саҳифада прогресс кўрсаткичи кўрсатилсин
+        </label>
+      </section>
+
+      <div class="actions">
+        <button id="save" type="button" class="primary">Сақлаш</button>
+        <button id="reset" type="button" class="ghost">Стандарт ҳолатга</button>
+        <span id="status" class="status"></span>
+      </div>
+    </main>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

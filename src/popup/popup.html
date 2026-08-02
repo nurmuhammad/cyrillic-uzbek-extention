@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="utf-8" />
+    <title>Ўзбекча таржимон</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <h1>Ўзбекча таржимон</h1>
+
+    <p id="detect" class="detect">Саҳифа текширилмоқда…</p>
+
+    <label id="sel-row" class="check accent" hidden>
+      <input id="only-selection" type="checkbox" />
+      <span>Фақат белгиланган матн (<b id="sel-chars">0</b> белги)</span>
+    </label>
+
+    <div class="actions">
+      <button id="btn-llm" class="primary">
+        <span class="label">LLM билан таржима</span>
+        <span class="sub">Ҳар қандай тилдан кирилл ўзбекчага</span>
+      </button>
+
+      <button id="btn-translit">
+        <span class="label">Транслитерация (LLM’сиз)</span>
+        <span class="sub">Лотин ўзбекча → кирилл, офлайн ва бепул</span>
+      </button>
+
+      <button id="btn-summary">
+        <span class="label">Саҳифа хулосаси</span>
+        <span class="sub">LLM талаб қилади</span>
+      </button>
+    </div>
+
+    <button id="btn-cancel" class="danger" hidden>Бекор қилиш</button>
+
+    <label id="force-row" class="check">
+      <input id="force" type="checkbox" />
+      <span>Кэшни четлаб ўтиш - қайта пул тўланади</span>
+    </label>
+
+    <div class="row">
+      <button id="btn-revert" class="ghost">Аслига қайтариш</button>
+      <button id="btn-show-summary" class="ghost">Хулосани кўрсатиш</button>
+    </div>
+
+    <p id="status" class="status"></p>
+
+    <footer>
+      <span id="model" class="model"></span>
+      <a href="#" id="open-options">Созламалар</a>
+    </footer>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
