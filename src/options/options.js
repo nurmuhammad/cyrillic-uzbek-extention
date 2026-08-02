@@ -7,6 +7,7 @@ const fields = {
   batchChars: document.getElementById('batchChars'),
   concurrency: document.getElementById('concurrency'),
   summaryStyle: document.getElementById('summaryStyle'),
+  blockMode: document.getElementById('blockMode'),
   autoDynamic: document.getElementById('autoDynamic'),
   cacheEnabled: document.getElementById('cacheEnabled'),
   showBadge: document.getElementById('showBadge'),
@@ -22,6 +23,7 @@ function fill(settings) {
   fields.batchChars.value = settings.batchChars;
   fields.concurrency.value = settings.concurrency;
   fields.summaryStyle.value = settings.summaryStyle;
+  fields.blockMode.checked = settings.blockMode;
   fields.autoDynamic.checked = settings.autoDynamic;
   fields.cacheEnabled.checked = settings.cacheEnabled;
   fields.showBadge.checked = settings.showBadge;
@@ -41,6 +43,7 @@ function collect() {
     batchChars: clamp(fields.batchChars.value, 300, 6000, DEFAULTS.batchChars),
     concurrency: clamp(fields.concurrency.value, 1, 10, DEFAULTS.concurrency),
     summaryStyle: fields.summaryStyle.value,
+    blockMode: fields.blockMode.checked,
     autoDynamic: fields.autoDynamic.checked,
     cacheEnabled: fields.cacheEnabled.checked,
     showBadge: fields.showBadge.checked,

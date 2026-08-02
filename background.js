@@ -10,6 +10,7 @@ import {
 } from './src/shared/openrouter.js';
 import {
   translateSystemPrompt,
+  blockSystemPrompt,
   summarySystemPrompt,
   reduceSystemPrompt,
 } from './src/shared/prompts.js';
@@ -284,7 +285,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (!msg || typeof msg.type !== 'string') return;
 
   if (msg.type === 'UZ_TRANSLATE_BATCH') {
-    handleTranslateBatch(msg.segments, msg.runId, msg.force)
+    handleTranslateBatch(msg.segments, msg.runId, msg.force, msg.blockMode)
       .then((payload) => sendResponse({ ok: true, ...payload }))
       .catch((err) => sendResponse({
         ok: false, error: describe(err), aborted: Boolean(err?.aborted),
@@ -376,13 +377,15 @@ function describe(err) {
  * @param {boolean} force - кэшни четлаб ўтиб, моделдан қайта сўраш
  * @returns {{segments: string[], fromCache: number, fresh: number}}
  */
-async function handleTranslateBatch(segments, runId, force = false) {
+async function handleTranslateBatch(segments, runId, force = false, blockMode = false) {
   if (!Array.isArray(segments) || segments.length === 0) {
     return { segments: [], fromCache: 0, fresh: 0 };
   }
 
   const { apiKey, model, cacheEnabled } = await getSettings();
-  const system = translateSystemPrompt();
+  // Блок режимида матн теглар билан келади, шунинг учун кэш калити ҳам
+  // табиий равишда бошқача бўлади - алоҳида белги қўшиш шарт эмас.
+  const system = blockMode ? blockSystemPrompt() : translateSystemPrompt();
 
   const keys = cacheEnabled
     ? await Promise.all(segments.map((text) => hashKey(model, text)))

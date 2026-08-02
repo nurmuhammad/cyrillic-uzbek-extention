@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Ўзбекча таржимон (Кирилл)",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Саҳифанинг асосий ўқиладиган қисмини кирилл ўзбекчага таржима қилади. Лотин ўзбекча учун офлайн транслитерация, қолгани учун OpenRouter.",
   "permissions": ["storage", "activeTab", "scripting", "contextMenus"],
   "host_permissions": ["https://openrouter.ai/*"],

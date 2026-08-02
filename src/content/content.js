@@ -14,6 +14,7 @@
     concurrency: 4,
     showBadge: true,
     autoDynamic: true,
+    blockMode: true,
   };
 
   const state = {
@@ -30,6 +31,10 @@
 
   /** Аслига қайтариш учун: {node, raw} рўйхати. */
   let originals = [];
+
+  // Блок режимида DOM қайта тизилади, шунинг учун матн қийматидан ташқари
+  // болалар тартиби ҳам сақланиши керак.
+  let blockOriginals = [];
 
   // Жорий сеанс. Бекор қилиш шу контекст орқали ишлайди: `cancelled` байроғи
   // янги пакетлар юборилишини тўхтатади, `id` эса background'даги учиб турган
@@ -300,57 +305,219 @@
     state.translated = true;
   }
 
-  async function runLlm(ctx) {
-    const { root, range } = resolveTarget(ctx);
-    const items = collectFresh(root, range);
-    if (!items.length) throw new Error('Таржима қилиш учун матн топилмади.');
-    await applyLlm(items, ctx);
+  // ── Блок режими ────────────────────────────────────────────────────────────
+  //
+  // Абзац теглар билан бирга юборилади, модель эса тегларни ўзбекча сўз
+  // тартибига мослаб кўчиради. Кейин DOM шу тартибда қайта тизилади:
+  // элементларнинг ўзи (демак href ва бошқа атрибутлари) сақланиб қолади,
+  // фақат жойи ва ичидаги матн ўзгаради.
+
+  function parseTagged(text) {
+    const pieces = [];
+    const re = /<(\d+)>([\s\S]*?)<\/\1>/g;
+    let last = 0;
+    let match = re.exec(text);
+
+    while (match) {
+      if (match.index > last) pieces.push({ text: text.slice(last, match.index) });
+      pieces.push({ tag: Number(match[1]), text: match[2] });
+      last = match.index + match[0].length;
+      match = re.exec(text);
+    }
+    if (last < text.length) pieces.push({ text: text.slice(last) });
+    return pieces;
   }
 
-  async function applyLlm(items, ctx) {
-    const batches = buildBatches(items, settingsCache.batchChars);
-    state.total = batches.length;
+  /** Ҳар тег айнан бир марта ва бўш бўлмаган ҳолда келганини текширади. */
+  function validPieces(pieces, expected) {
+    const tags = pieces.filter((p) => p.tag).map((p) => p.tag).sort((a, b) => a - b);
+    if (tags.length !== expected) return false;
+    for (let i = 0; i < expected; i++) if (tags[i] !== i + 1) return false;
+    return !pieces.some((p) => p.tag && !p.text.trim());
+  }
+
+  function setElementText(el, text) {
+    const nodes = Array.from(el.childNodes);
+    const first = nodes.find((n) => n.nodeType === Node.TEXT_NODE);
+    if (first) {
+      first.nodeValue = text;
+      for (const node of nodes) if (node !== first) el.removeChild(node);
+    } else {
+      el.textContent = text;
+    }
+  }
+
+  function rememberBlock(unit) {
+    const values = [];
+    for (const node of unit.children) {
+      if (node.nodeType === Node.TEXT_NODE) values.push([node, node.nodeValue]);
+    }
+    for (const el of unit.elements) {
+      for (const node of el.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE) values.push([node, node.nodeValue]);
+      }
+    }
+    for (const [node] of values) translatedNodes.add(node);
+    blockOriginals.push({ block: unit.block, children: unit.children, values });
+  }
+
+  function rebuildBlock(unit, pieces) {
+    const frag = document.createDocumentFragment();
+    for (const piece of pieces) {
+      if (piece.tag) {
+        const el = unit.elements[piece.tag - 1];
+        setElementText(el, piece.text);
+        frag.appendChild(el);       // элемент блокдан ўзи кўчиб чиқади
+      } else if (piece.text) {
+        frag.appendChild(document.createTextNode(piece.text));
+      }
+    }
+    while (unit.block.firstChild) unit.block.removeChild(unit.block.firstChild);
+    unit.block.appendChild(frag);
+  }
+
+  function buildUnitBatches(units, maxChars) {
+    const batches = [];
+    let current = [];
+    let size = 0;
+    for (const unit of units) {
+      if (current.length && (size + unit.template.length > maxChars || current.length >= 12)) {
+        batches.push(current);
+        current = [];
+        size = 0;
+      }
+      current.push(unit);
+      size += unit.template.length;
+    }
+    if (current.length) batches.push(current);
+    return batches;
+  }
+
+  function unitIsFresh(unit) {
+    if (unit.texts.some((node) => translatedNodes.has(node))) return false;
+    return !unit.elements.some(
+      (el) => Array.from(el.childNodes).some((n) => translatedNodes.has(n)),
+    );
+  }
+
+  async function runLlm(ctx) {
+    const { root, range } = resolveTarget(ctx);
+
+    let units = [];
+    let consumed = null;
+
+    if (settingsCache.blockMode) {
+      const collected = self.UZ_EXTRACT.collectBlocks(root, range);
+      units = collected.units.filter(unitIsFresh);
+      consumed = collected.consumed;
+    }
+
+    // Блокка кирмай қолган матн тугунлари эски йўлдан ўтади
+    const loose = self.UZ_EXTRACT.collectNodes(root, range).filter(
+      (item) => !translatedNodes.has(item.node) && !(consumed && consumed.has(item.node)),
+    );
+
+    if (!units.length && !loose.length) {
+      throw new Error('Таржима қилиш учун матн топилмади.');
+    }
+    await applyLlm({ units, items: loose }, ctx);
+  }
+
+  async function applyLlm({ units = [], items = [] }, ctx) {
+    const unitBatches = buildUnitBatches(units, settingsCache.batchChars);
+    const nodeBatches = buildBatches(items, settingsCache.batchChars);
+
+    state.total = unitBatches.length + nodeBatches.length;
     state.done = 0;
 
     items.forEach(rememberOriginal);
     showBadge(`Таржима: 0/${state.total}`, { progress: 0 });
 
     const failures = [];
+    const fallback = [];   // теглари бузилган блоклар
     let attempted = 0;
 
-    const tasks = batches.map((batch) => async () => {
-      // Бекор қилинган бўлса - бу пакетни умуман юбормаймиз
-      if (ctx.cancelled) return;
-      attempted += 1;
-      try {
-        const response = await sendToBackground({
-          type: 'UZ_TRANSLATE_BATCH',
-          runId: ctx.id,
-          force: ctx.force,
-          segments: batch.map((item) => item.core),
+    function tick() {
+      state.done += 1;
+      if (!ctx.cancelled) {
+        showBadge(`Таржима: ${state.done}/${state.total}`, {
+          progress: state.total ? state.done / state.total : 1,
         });
-        // Жавоб келгунча бекор қилинган бўлиши мумкин - натижани қўлламаймиз
-        if (ctx.cancelled) return;
-        state.fromCache += response.fromCache || 0;
-        state.fresh += response.fresh || 0;
-        batch.forEach((item, i) => applyTranslation(item, response.segments[i]));
-      } catch (err) {
-        if (!ctx.cancelled && !err.aborted) failures.push(err.message);
-      } finally {
-        state.done += 1;
-        if (!ctx.cancelled) {
-          showBadge(`Таржима: ${state.done}/${state.total}`, {
-            progress: state.done / state.total,
-          });
-        }
-        publish();
       }
-    });
+      publish();
+    }
+
+    async function send(segments, blockMode) {
+      const response = await sendToBackground({
+        type: 'UZ_TRANSLATE_BATCH',
+        runId: ctx.id,
+        force: ctx.force,
+        blockMode,
+        segments,
+      });
+      state.fromCache += response.fromCache || 0;
+      state.fresh += response.fresh || 0;
+      return response.segments;
+    }
+
+    const tasks = [];
+
+    for (const batch of unitBatches) {
+      tasks.push(async () => {
+        if (ctx.cancelled) return;
+        attempted += 1;
+        try {
+          const out = await send(batch.map((u) => u.template), true);
+          if (ctx.cancelled) return;
+          batch.forEach((unit, i) => {
+            const pieces = parseTagged(out[i]);
+            if (!validPieces(pieces, unit.elements.length)) {
+              // Модель тегни йўқотган ёки такрорлаган - эски усулга тушамиз
+              fallback.push(unit);
+              return;
+            }
+            rememberBlock(unit);
+            rebuildBlock(unit, pieces);
+          });
+        } catch (err) {
+          if (!ctx.cancelled && !err.aborted) failures.push(err.message);
+        } finally {
+          tick();
+        }
+      });
+    }
+
+    for (const batch of nodeBatches) {
+      tasks.push(async () => {
+        if (ctx.cancelled) return;
+        attempted += 1;
+        try {
+          const out = await send(batch.map((item) => item.core), false);
+          if (ctx.cancelled) return;
+          batch.forEach((item, i) => applyTranslation(item, out[i]));
+        } catch (err) {
+          if (!ctx.cancelled && !err.aborted) failures.push(err.message);
+        } finally {
+          tick();
+        }
+      });
+    }
 
     await runPool(tasks, Math.max(1, settingsCache.concurrency));
 
     state.translated = true;
     if (ctx.cancelled) return;
+
+    // Теглари бузилган блокларни тугун-тугун қайта уринамиз
+    if (fallback.length) {
+      const retry = [];
+      for (const unit of fallback) {
+        for (const node of self.UZ_EXTRACT.collectNodes(unit.block, null)) {
+          if (!translatedNodes.has(node.node)) retry.push(node);
+        }
+      }
+      if (retry.length) await applyLlm({ items: retry }, ctx);
+    }
 
     if (attempted > 0 && failures.length === attempted) {
       throw new Error(failures[0] || 'Барча сўровлар муваффақиятсиз тугади.');
@@ -415,8 +582,18 @@
       return;
     }
 
-    const items = collectFresh(observerRoot, null);
-    if (!items.length) return;
+    let units = [];
+    let consumed = null;
+    if (observerMode === 'llm' && settingsCache.blockMode) {
+      const collected = self.UZ_EXTRACT.collectBlocks(observerRoot, null);
+      units = collected.units.filter(unitIsFresh);
+      consumed = collected.consumed;
+    }
+
+    const items = self.UZ_EXTRACT.collectNodes(observerRoot, null).filter(
+      (item) => !translatedNodes.has(item.node) && !(consumed && consumed.has(item.node)),
+    );
+    if (!units.length && !items.length) return;
 
     autoRuns += 1;
     const ctx = { id: ++runCounter, cancelled: false, force: false, range: null };
@@ -429,7 +606,7 @@
 
     try {
       if (observerMode === 'translit') await applyTranslit(items, ctx);
-      else await applyLlm(items, ctx);
+      else await applyLlm({ units, items }, ctx);
       state.status = ctx.cancelled ? 'cancelled' : 'done';
     } catch (err) {
       state.status = 'error';
@@ -464,7 +641,17 @@
     for (const entry of originals) {
       if (entry.node.isConnected) entry.node.nodeValue = entry.raw;
     }
+
+    // Блокларни: аввал матнларни, кейин болалар тартибини тиклаймиз
+    for (const entry of blockOriginals.slice().reverse()) {
+      for (const [node, raw] of entry.values) node.nodeValue = raw;
+      if (!entry.block.isConnected) continue;
+      while (entry.block.firstChild) entry.block.removeChild(entry.block.firstChild);
+      for (const child of entry.children) entry.block.appendChild(child);
+    }
+
     originals = [];
+    blockOriginals = [];
     translatedNodes = new WeakSet();
     state.translated = false;
     state.status = 'idle';

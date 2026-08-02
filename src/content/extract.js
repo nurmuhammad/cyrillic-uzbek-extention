@@ -162,6 +162,108 @@
     return items;
   }
 
+  // ── Блок бирлигида йиғиш ───────────────────────────────────────────────────
+  //
+  // Матн тугунини алоҳида таржима қилиш ҳаволали жумлаларни бузади: ўзбекча
+  // феъл жумла охирига кетиши керак, лекин у бошқа тугунда турган бўлса
+  // қимирлатиб бўлмайди. Шунинг учун бутун абзацни ичидаги ҳаволалари билан
+  // бирга, тегларга ўраб юборамиз:
+  //
+  //   "разработчик <1>объявил</1> о выходе <2>4MLinux 52.0</2>"
+  //
+  // Модель бутун жумлани кўради, ўзбекча тартибда қайта қуради ва тегларни ўз
+  // жойига қўяди. Кейин биз тегларга қараб DOM'ни қайта тизамиз.
+
+  const BLOCK_SELECTOR = [
+    'p', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'blockquote', 'dd', 'dt', 'figcaption', 'td', 'th', 'caption', 'summary',
+  ].join(',');
+
+  // Ичи кўчирилиши мумкин бўлган inline элементлар. Рўйхатда йўқ элемент
+  // учраса, блок эски усулда (тугун-тугун) таржима қилинади.
+  const INLINE_OK = new Set([
+    'A', 'B', 'STRONG', 'EM', 'I', 'U', 'SPAN', 'MARK', 'SMALL', 'ABBR',
+    'CITE', 'Q', 'TIME', 'INS', 'DEL', 'SUP', 'SUB', 'BDI', 'FONT',
+  ]);
+
+  const MAX_INLINE = 12;
+
+  /**
+   * Битта блокни таржима бирлигига айлантиради.
+   * @returns {null|{block, texts, elements, template, children}}
+   */
+  function buildBlockUnit(block, visibilityCache, range) {
+    if (range && !range.intersectsNode(block)) return null;
+    if (isSkippable(block, visibilityCache)) return null;
+    if (block.querySelector(BLOCK_SELECTOR)) return null;   // ичма-ич блок
+
+    const texts = [];       // блокнинг ўз матн тугунлари
+    const elements = [];    // теглар остидаги inline элементлар
+    let template = '';
+
+    for (const child of block.childNodes) {
+      if (child.nodeType === Node.COMMENT_NODE) continue;
+
+      if (child.nodeType === Node.TEXT_NODE) {
+        template += child.nodeValue;
+        texts.push(child);
+        continue;
+      }
+
+      if (child.nodeType !== Node.ELEMENT_NODE) return null;
+      if (!INLINE_OK.has(child.tagName)) return null;
+      if (child.children.length) return null;               // ичма-ич разметка
+      if (isSkippable(child, visibilityCache)) return null;
+
+      const inner = child.textContent;
+      if (!inner || !inner.trim()) return null;
+
+      elements.push(child);
+      template += `<${elements.length}>${inner}</${elements.length}>`;
+    }
+
+    // Inline элемент бўлмаса, оддий йўл кифоя
+    if (!elements.length || elements.length > MAX_INLINE) return null;
+    if (!hasLetters(template) || !template.trim()) return null;
+
+    return {
+      block,
+      texts,
+      elements,
+      template,
+      children: Array.from(block.childNodes),
+    };
+  }
+
+  /**
+   * Илдиз ичидаги блок бирликларини йиғади ва улар «еб қўйган» матн
+   * тугунларини WeakSet орқали қайтаради - қолгани эски йўлдан ўтади.
+   */
+  function collectBlocks(root, range = null) {
+    const visibilityCache = new WeakMap();
+    const units = [];
+    const consumed = new WeakSet();
+
+    const blocks = root.matches && root.matches(BLOCK_SELECTOR)
+      ? [root, ...root.querySelectorAll(BLOCK_SELECTOR)]
+      : Array.from(root.querySelectorAll(BLOCK_SELECTOR));
+
+    for (const block of blocks) {
+      const unit = buildBlockUnit(block, visibilityCache, range);
+      if (!unit) continue;
+
+      units.push(unit);
+      for (const node of unit.texts) consumed.add(node);
+      for (const el of unit.elements) {
+        for (const node of el.childNodes) {
+          if (node.nodeType === Node.TEXT_NODE) consumed.add(node);
+        }
+      }
+    }
+
+    return { units, consumed };
+  }
+
   /** Хулоса учун ўқиладиган матнни бир бутун сатр қилиб беради. */
   function readableText(root) {
     const text = (root.innerText || '').replace(/\n{3,}/g, '\n\n').trim();
@@ -171,6 +273,7 @@
   self.UZ_EXTRACT = {
     pickRoot,
     collectNodes,
+    collectBlocks,
     readableText,
     getSelectionRange,
     rangeRoot,
