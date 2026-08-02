@@ -3,7 +3,7 @@
   "name": "Ўзбекча таржимон (Кирилл)",
   "version": "0.1.0",
   "description": "Саҳифанинг асосий ўқиладиган қисмини кирилл ўзбекчага таржима қилади. Лотин ўзбекча учун офлайн транслитерация, қолгани учун OpenRouter.",
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab", "scripting", "contextMenus"],
   "host_permissions": ["https://openrouter.ai/*"],
   "optional_host_permissions": ["<all_urls>"],
   "background": {
@@ -24,5 +24,19 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "options_page": "src/options/options.html"
+  "options_page": "src/options/options.html",
+  "commands": {
+    "translate-llm": {
+      "suggested_key": { "default": "Alt+Shift+U" },
+      "description": "LLM билан таржима қилиш"
+    },
+    "translate-translit": {
+      "suggested_key": { "default": "Alt+Shift+L" },
+      "description": "Транслитерация (LLM'сиз)"
+    },
+    "revert": {
+      "suggested_key": { "default": "Alt+Shift+O" },
+      "description": "Асл матнга қайтариш"
+    }
+  }
 }

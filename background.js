@@ -13,6 +13,12 @@ import {
   summarySystemPrompt,
   reduceSystemPrompt,
 } from './src/shared/prompts.js';
+import {
+  attach,
+  runTranslate,
+  revertAll,
+  badge,
+} from './src/shared/orchestrate.js';
 
 // ── Кэш ────────────────────────────────────────────────────────────────────
 //
@@ -78,12 +84,17 @@ async function cacheRead(keys) {
   return values;
 }
 
-async function cacheWrite(keys, values) {
+/**
+ * @param {string[]} sources - асл матн. Тўлиқ эмас, биринчи 120 белгиси
+ *   сақланади: созламалардаги кэш рўйхатида ёзувни таниб олиш учун етарли,
+ *   лекин жойни икки баробар эгалламайди.
+ */
+async function cacheWrite(keys, values, sources = []) {
   if (!keys.length) return;
   const now = Date.now();
   const patch = {};
   keys.forEach((key, i) => {
-    patch[key] = { t: values[i], u: now };
+    patch[key] = { s: String(sources[i] || '').slice(0, 120), t: values[i], u: now };
     memSet(key, values[i]);
   });
   await chrome.storage.local.set(patch);
@@ -123,6 +134,38 @@ async function cacheStats() {
   return { count: keys.length, bytes };
 }
 
+/** Созламалардаги кэш рўйхати учун. Янгидан эскига қараб тартибланади. */
+async function cacheList({ query = '', limit = 200 } = {}) {
+  const all = await chrome.storage.local.get(null);
+  const needle = String(query || '').trim().toLowerCase();
+
+  const entries = [];
+  for (const [key, value] of Object.entries(all)) {
+    if (!key.startsWith(STORE_PREFIX)) continue;
+    if (!value || typeof value.t !== 'string') continue;
+    if (needle && !`${value.s || ''} ${value.t}`.toLowerCase().includes(needle)) continue;
+    entries.push({ key, s: value.s || '', t: value.t, u: value.u || 0 });
+  }
+
+  entries.sort((a, b) => b.u - a.u);
+  return { entries: entries.slice(0, limit), matched: entries.length };
+}
+
+async function cacheDelete(keys) {
+  const valid = (keys || []).filter(
+    (key) => typeof key === 'string' && key.startsWith(STORE_PREFIX),
+  );
+  if (!valid.length) return 0;
+
+  await chrome.storage.local.remove(valid);
+  for (const key of valid) memory.delete(key);
+
+  const stored = await chrome.storage.local.get(COUNT_KEY);
+  const next = Math.max(0, (stored[COUNT_KEY] || 0) - valid.length);
+  await chrome.storage.local.set({ [COUNT_KEY]: next });
+  return valid.length;
+}
+
 async function cacheClear() {
   const all = await chrome.storage.local.get(null);
   const keys = Object.keys(all).filter((key) => key.startsWith(STORE_PREFIX));
@@ -130,6 +173,76 @@ async function cacheClear() {
   await chrome.storage.local.set({ [COUNT_KEY]: 0 });
   memory.clear();
   return keys.length;
+}
+
+// ── Харажат ҳисоби ─────────────────────────────────────────────────────────
+//
+// OpenRouter ҳар жавобда токен сонини қайтаради, баъзи моделларда нархни ҳам.
+// Шуни кунлар кесимида йиғиб борамиз - фойдаланувчи қанча сарфлаётганини
+// кўриб турсин.
+
+const USAGE_KEY = '__usage';
+const USAGE_DAYS = 60;
+
+function emptyBucket() {
+  return { input: 0, output: 0, cost: 0, requests: 0 };
+}
+
+function addTo(bucket, usage) {
+  bucket.input += usage.input;
+  bucket.output += usage.output;
+  bucket.cost += usage.cost;
+  bucket.requests += 1;
+}
+
+async function readUsage() {
+  const stored = await chrome.storage.local.get(USAGE_KEY);
+  const data = stored[USAGE_KEY];
+  if (data && data.total && data.days) return data;
+  return { total: emptyBucket(), days: {} };
+}
+
+async function recordUsage(usage) {
+  if (!usage || (!usage.input && !usage.output)) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const data = await readUsage();
+
+  const day = data.days[today] || emptyBucket();
+  addTo(data.total, usage);
+  addTo(day, usage);
+  data.days[today] = day;
+
+  // Эски кунларни ташлаб турамиз, акс ҳолда объект чексиз ўсади
+  const keys = Object.keys(data.days).sort();
+  while (keys.length > USAGE_DAYS) delete data.days[keys.shift()];
+
+  await chrome.storage.local.set({ [USAGE_KEY]: data });
+}
+
+async function usageStats() {
+  const data = await readUsage();
+  const today = new Date().toISOString().slice(0, 10);
+  const monthPrefix = today.slice(0, 7);
+
+  const month = emptyBucket();
+  for (const [day, bucket] of Object.entries(data.days)) {
+    if (!day.startsWith(monthPrefix)) continue;
+    month.input += bucket.input;
+    month.output += bucket.output;
+    month.cost += bucket.cost;
+    month.requests += bucket.requests;
+  }
+
+  return {
+    today: data.days[today] || emptyBucket(),
+    month,
+    total: data.total,
+  };
+}
+
+async function usageReset() {
+  await chrome.storage.local.remove(USAGE_KEY);
 }
 
 // ── Бекор қилиш ────────────────────────────────────────────────────────────
@@ -200,6 +313,34 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === 'UZ_USAGE_STATS') {
+    usageStats()
+      .then((stats) => sendResponse({ ok: true, ...stats }))
+      .catch((err) => sendResponse({ ok: false, error: describe(err) }));
+    return true;
+  }
+
+  if (msg.type === 'UZ_USAGE_RESET') {
+    usageReset()
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => sendResponse({ ok: false, error: describe(err) }));
+    return true;
+  }
+
+  if (msg.type === 'UZ_CACHE_LIST') {
+    cacheList({ query: msg.query, limit: msg.limit })
+      .then((data) => sendResponse({ ok: true, ...data }))
+      .catch((err) => sendResponse({ ok: false, error: describe(err) }));
+    return true;
+  }
+
+  if (msg.type === 'UZ_CACHE_DELETE') {
+    cacheDelete(msg.keys)
+      .then((removed) => sendResponse({ ok: true, removed }))
+      .catch((err) => sendResponse({ ok: false, error: describe(err) }));
+    return true;
+  }
+
   if (msg.type === 'UZ_CACHE_CLEAR') {
     cacheClear()
       .then((removed) => sendResponse({ ok: true, removed }))
@@ -264,14 +405,15 @@ async function handleTranslateBatch(segments, runId, force = false) {
     const controller = new AbortController();
     trackRequest(runId, controller);
     try {
-      const translated = await translateSegments(pending, {
+      const { segments: translated, usage } = await translateSegments(pending, {
         apiKey, model, system, signal: controller.signal,
       });
+      await recordUsage(usage);
       translated.forEach((value, k) => {
         result[pendingIndex[k]] = value;
       });
       if (cacheEnabled) {
-        await cacheWrite(pendingIndex.map((i) => keys[i]), translated);
+        await cacheWrite(pendingIndex.map((i) => keys[i]), translated, pending);
       }
     } finally {
       untrackRequest(runId, controller);
@@ -305,7 +447,7 @@ async function handleSummarize(text, runId) {
 
   try {
     if (clean.length <= SINGLE_PASS_LIMIT) {
-      return await completeText({
+      const single = await completeText({
         apiKey,
         model,
         system: summarySystemPrompt(summaryStyle),
@@ -313,6 +455,8 @@ async function handleSummarize(text, runId) {
         maxTokens: 2048,
         signal,
       });
+      await recordUsage(single.usage);
+      return single.text;
     }
 
     const chunks = splitChunks(clean, CHUNK_CHARS);
@@ -326,10 +470,11 @@ async function handleSummarize(text, runId) {
         maxTokens: 1024,
         signal,
       });
-      partials.push(partial);
+      await recordUsage(partial.usage);
+      partials.push(partial.text);
     }
 
-    return await completeText({
+    const merged = await completeText({
       apiKey,
       model,
       system: reduceSystemPrompt(summaryStyle),
@@ -337,10 +482,100 @@ async function handleSummarize(text, runId) {
       maxTokens: 2048,
       signal,
     });
+    await recordUsage(merged.usage);
+    return merged.text;
   } finally {
     untrackRequest(runId, controller);
   }
 }
+
+// ── Контекст меню ва клавиатура қисқартмаси ────────────────────────────────
+//
+// Иккаласи ҳам popup'ни очмасдан ишлайди. activeTab рухсати айнан шу учта
+// ҳаракатда берилади: иконка босилганда, контекст менюдан танланганда ва
+// manifest'да эълон қилинган қисқартма босилганда.
+
+const MENU_ITEMS = [
+  { id: 'uz-sel-llm', title: 'Белгиланганни LLM билан ўгириш', contexts: ['selection'] },
+  { id: 'uz-sel-translit', title: 'Белгиланганни транслитерация қилиш', contexts: ['selection'] },
+  { id: 'uz-page-llm', title: 'Саҳифани LLM билан ўгириш', contexts: ['page'] },
+  { id: 'uz-page-translit', title: 'Саҳифани транслитерация қилиш', contexts: ['page'] },
+  { id: 'uz-revert', title: 'Асл матнга қайтариш', contexts: ['page', 'selection'] },
+];
+
+function buildMenus() {
+  chrome.contextMenus.removeAll(() => {
+    for (const item of MENU_ITEMS) {
+      chrome.contextMenus.create({
+        ...item,
+        documentUrlPatterns: ['http://*/*', 'https://*/*'],
+      });
+    }
+  });
+}
+
+chrome.runtime.onInstalled.addListener(buildMenus);
+if (chrome.runtime.onStartup) chrome.runtime.onStartup.addListener(buildMenus);
+
+async function requireKey(tabId, mode) {
+  if (mode !== 'llm') return true;
+  const { apiKey } = await getSettings();
+  if (apiKey) return true;
+  await badge(tabId, 'API-калит киритилмаган. Созламаларни очинг.', {
+    error: true, autoHideMs: 6000,
+  });
+  return false;
+}
+
+async function actOnTab(tabId, { mode, onlySelection = null, revert = false }) {
+  const frameSet = await attach(tabId);
+
+  if (revert) {
+    await revertAll(tabId, frameSet);
+    await badge(tabId, 'Асл матн қайтарилди', { autoHideMs: 2000 });
+    return;
+  }
+
+  if (!await requireKey(tabId, mode)) return;
+
+  // onlySelection берилмаса - матн белгиланган бўлса ўшани, акс ҳолда саҳифани
+  const useSelection = onlySelection === null
+    ? frameSet.selectionFrameId !== null
+    : onlySelection && frameSet.selectionFrameId !== null;
+
+  await runTranslate(tabId, frameSet, { mode, onlySelection: useSelection });
+}
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (!tab?.id) return;
+
+  const plan = {
+    'uz-sel-llm': { mode: 'llm', onlySelection: true },
+    'uz-sel-translit': { mode: 'translit', onlySelection: true },
+    'uz-page-llm': { mode: 'llm', onlySelection: false },
+    'uz-page-translit': { mode: 'translit', onlySelection: false },
+    'uz-revert': { revert: true },
+  }[info.menuItemId];
+
+  if (!plan) return;
+  actOnTab(tab.id, plan).catch((err) => console.warn('[uz] контекст меню:', err.message));
+});
+
+chrome.commands.onCommand.addListener(async (command) => {
+  const plan = {
+    'translate-llm': { mode: 'llm' },
+    'translate-translit': { mode: 'translit' },
+    revert: { revert: true },
+  }[command];
+  if (!plan) return;
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id) await actOnTab(tab.id, plan);
+  } catch (err) {
+    console.warn('[uz] қисқартма:', err.message);
+  }
+});
 
 function splitChunks(text, size) {
   const chunks = [];

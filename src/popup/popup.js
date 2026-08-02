@@ -1,18 +1,19 @@
-// Popup. Content script'ни ҳамма фреймга инжекция қилади ва амалларни
-// ишга туширади. Ҳеч қандай API-калит бу ерда ишлатилмайди.
-//
-// Нима учун фреймлар билан овора бўламиз: кўп сайт (масалан t.me) асосий
-// матнни iframe ичида кўрсатади. Фақат юқори фреймга юкланса, ўша матн
-// таржима қилинмай қолади.
+// Popup. Саҳифа устидаги амаллар src/shared/orchestrate.js да - худди шу
+// модулни background ҳам ишлатади (контекст меню ва қисқартма учун).
+// Ҳеч қандай API-калит бу ерда ишлатилмайди.
 
-const CONTENT_FILES = [
-  'src/content/translit.js',
-  'src/content/detect.js',
-  'src/content/extract.js',
-  'src/content/content.js',
-];
+import {
+  TOP_FRAME,
+  attach,
+  runTranslate as orchestrateTranslate,
+  revertAll,
+  cancelAll,
+  collectSummaryText,
+  showSummary,
+  badge,
+  sendToFrame,
+} from '../shared/orchestrate.js';
 
-const TOP_FRAME = 0;
 const ALL_URLS = { origins: ['<all_urls>'] };
 
 const els = {
@@ -40,11 +41,7 @@ const ACTION_BUTTONS = [els.llm, els.translit, els.summary, els.revert, els.show
 let tabId = null;
 let hasKey = false;
 let busy = false;
-
-/** Content script тирик бўлган фреймлар: [{frameId, chars, selection, detection}] */
-let frames = [];
-let mainFrameId = TOP_FRAME;
-let selectionFrameId = null;
+let frameSet = { frames: [], mainFrameId: TOP_FRAME, selectionFrameId: null };
 let summaryRunId = null;
 
 const progressByFrame = new Map();
@@ -75,80 +72,20 @@ function applyKeyGate() {
   }
 }
 
-function sendToFrame(frameId, message) {
-  return new Promise((resolve, reject) => {
-    chrome.tabs.sendMessage(tabId, message, { frameId }, (response) => {
-      const err = chrome.runtime.lastError;
-      if (err) return reject(new Error(err.message));
-      if (!response) return reject(new Error('Фреймдан жавоб келмади.'));
-      if (!response.ok) return reject(new Error(response.error || 'Хато юз берди.'));
-      return resolve(response);
-    });
-  });
-}
-
-/** Хатони ютиб юборадиган вариант - фреймларга кўп сўров юборганда керак. */
-async function trySendToFrame(frameId, message) {
-  try {
-    return await sendToFrame(frameId, message);
-  } catch {
-    return null;
-  }
-}
-
-// ── Инжекция ва фреймларни аниқлаш ─────────────────────────────────────────
-
-async function injectAll() {
-  // Гуард байроғи борлиги учун қайта инжекция зарарсиз
-  try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId, allFrames: true },
-      files: CONTENT_FILES,
-    });
-    return results.map((r) => r.frameId).filter((id) => id !== undefined);
-  } catch {
-    // allFrames рухсат этилмаса - ҳеч бўлмаса юқори фреймга юклаймиз
-    await chrome.scripting.executeScript({ target: { tabId }, files: CONTENT_FILES });
-    return [TOP_FRAME];
-  }
-}
-
-async function collectFrames() {
-  const ids = await injectAll();
-
-  const infos = await Promise.all(ids.map(async (frameId) => {
-    const response = await trySendToFrame(frameId, { type: 'UZ_PING' });
-    return response ? { frameId, ...response } : null;
-  }));
-
-  frames = infos.filter(Boolean).filter((f) => f.chars > 0 || f.frameId === TOP_FRAME);
-  if (!frames.length) throw new Error('Саҳифага уланиб бўлмади.');
-
-  // Асосий матн энг кўп бўлган фрейм - хулоса ва тил тахмини шундан олинади
-  mainFrameId = frames.reduce((best, f) => (f.chars > best.chars ? f : best), frames[0]).frameId;
-
-  const withSelection = frames.find((f) => f.selection && f.selection.chars > 0);
-  selectionFrameId = withSelection ? withSelection.frameId : null;
-
-  return frames;
-}
-
-function frameTargets(useSelection) {
-  if (useSelection && selectionFrameId !== null) return [selectionFrameId];
-  return frames.map((f) => f.frameId);
-}
-
 function usingSelection() {
-  return !els.selRow.hidden && els.onlySelection.checked && selectionFrameId !== null;
+  return !els.selRow.hidden
+    && els.onlySelection.checked
+    && frameSet.selectionFrameId !== null;
 }
 
 // ── Кўрсатиш ───────────────────────────────────────────────────────────────
 
 function renderDetection() {
-  const source = frames.find((f) => f.frameId === (selectionFrameId ?? mainFrameId))
-    || frames[0];
-  const detection = source.detection;
+  const source = frameSet.frames.find(
+    (f) => f.frameId === (frameSet.selectionFrameId ?? frameSet.mainFrameId),
+  ) || frameSet.frames[0];
 
+  const detection = source.detection;
   els.detect.className = `detect hint-${detection.hint}`;
   els.detect.textContent = detection.label;
 
@@ -162,20 +99,17 @@ function renderDetection() {
 }
 
 function renderFrames() {
-  const inner = frames.filter((f) => f.frameId !== TOP_FRAME && f.chars > 0);
-  if (!inner.length) {
-    els.frames.hidden = true;
-    return;
+  const inner = frameSet.frames.filter((f) => f.frameId !== TOP_FRAME && f.chars > 0);
+  els.frames.hidden = inner.length === 0;
+  if (inner.length) {
+    els.frames.textContent = `Саҳифада ${inner.length} та iframe топилди, улар ҳам таржима қилинади.`;
   }
-  els.frames.hidden = false;
-  els.frames.textContent = `Саҳифада ${inner.length} та iframe топилди, улар ҳам таржима қилинади.`;
 }
 
 function renderSelection() {
-  const info = frames.find((f) => f.frameId === selectionFrameId);
-  const has = Boolean(info);
-  els.selRow.hidden = !has;
-  if (!has) {
+  const info = frameSet.frames.find((f) => f.frameId === frameSet.selectionFrameId);
+  els.selRow.hidden = !info;
+  if (!info) {
     els.onlySelection.checked = false;
     return;
   }
@@ -218,30 +152,22 @@ function renderProgress() {
 
 // ── Амаллар ────────────────────────────────────────────────────────────────
 
-async function runTranslate(mode) {
+async function translate(mode) {
   if (busy) return;
   setBusy(true);
   progressByFrame.clear();
   setStatus('Ишга туширилмоқда…');
 
   try {
-    await collectFrames();
-    const useSelection = usingSelection();
-    const targets = frameTargets(useSelection);
-
-    const results = await Promise.all(targets.map((frameId) => trySendToFrame(frameId, {
-      type: 'UZ_RUN',
+    frameSet = await attach(tabId);
+    const result = await orchestrateTranslate(tabId, frameSet, {
       mode,
       force: els.force.checked,
-      onlySelection: useSelection,
-    })));
+      onlySelection: usingSelection(),
+    });
 
-    const ok = results.filter(Boolean);
-    if (!ok.length) {
-      setStatus('Ҳеч бир фреймда таржима қилинмади.', true);
-    } else {
-      renderProgress();
-    }
+    if (!result.started) setStatus('Ҳеч бир фреймда таржима қилинмади.', true);
+    else renderProgress();
   } catch (err) {
     setStatus(err.message, true);
   } finally {
@@ -249,27 +175,19 @@ async function runTranslate(mode) {
   }
 }
 
-async function runSummary() {
+async function summarize() {
   if (busy) return;
   setBusy(true);
   setStatus('Матн йиғилмоқда…');
 
   try {
-    await collectFrames();
-    const useSelection = usingSelection();
-    const sourceFrame = useSelection ? selectionFrameId : mainFrameId;
-
-    const collected = await sendToFrame(sourceFrame, {
-      type: 'UZ_COLLECT_TEXT',
-      onlySelection: useSelection,
-    });
-
-    const text = (collected.text || '').trim();
+    frameSet = await attach(tabId);
+    const text = await collectSummaryText(tabId, frameSet, usingSelection());
     if (text.length < 80) throw new Error('Хулоса қилиш учун матн жуда кам.');
 
     summaryRunId = `sum-${Date.now()}`;
     setStatus('Хулоса тайёрланмоқда…');
-    await trySendToFrame(TOP_FRAME, { type: 'UZ_BADGE', text: 'Хулоса тайёрланмоқда…' });
+    await badge(tabId, 'Хулоса тайёрланмоқда…');
 
     const response = await chrome.runtime.sendMessage({
       type: 'UZ_SUMMARIZE',
@@ -280,26 +198,25 @@ async function runSummary() {
     if (!response?.ok) {
       if (response?.aborted) {
         setStatus('Бекор қилинди');
-        await trySendToFrame(TOP_FRAME, { type: 'UZ_BADGE', text: '' });
+        await badge(tabId, '');
         return;
       }
       throw new Error(response?.error || 'Хулоса тайёрланмади.');
     }
 
-    // Панель ҳар доим юқори фреймда: iframe ичида у қисилиб қолади
-    await trySendToFrame(TOP_FRAME, { type: 'UZ_SHOW_TEXT', text: response.summary });
-    await trySendToFrame(TOP_FRAME, { type: 'UZ_BADGE', text: '' });
+    await showSummary(tabId, response.summary);
+    await badge(tabId, '');
     setStatus('Хулоса саҳифада кўрсатилди.');
   } catch (err) {
     setStatus(err.message, true);
-    await trySendToFrame(TOP_FRAME, { type: 'UZ_BADGE', text: err.message, error: true, autoHideMs: 8000 });
+    await badge(tabId, err.message, { error: true, autoHideMs: 8000 });
   } finally {
     summaryRunId = null;
     setBusy(false);
   }
 }
 
-async function cancelAll() {
+async function cancel() {
   els.cancel.disabled = true;
   setStatus('Тўхтатилмоқда…');
 
@@ -308,21 +225,20 @@ async function cancelAll() {
       await chrome.runtime.sendMessage({ type: 'UZ_ABORT', runId: summaryRunId });
     } catch { /* эътибор бермаймиз */ }
   }
-
-  await Promise.all(frames.map((f) => trySendToFrame(f.frameId, { type: 'UZ_CANCEL' })));
+  await cancelAll(tabId, frameSet);
 }
 
 // ── Тугмалар ───────────────────────────────────────────────────────────────
 
-els.llm.addEventListener('click', () => runTranslate('llm'));
-els.translit.addEventListener('click', () => runTranslate('translit'));
-els.summary.addEventListener('click', () => runSummary());
-els.cancel.addEventListener('click', () => cancelAll());
+els.llm.addEventListener('click', () => translate('llm'));
+els.translit.addEventListener('click', () => translate('translit'));
+els.summary.addEventListener('click', () => summarize());
+els.cancel.addEventListener('click', () => cancel());
 
 els.revert.addEventListener('click', async () => {
   setBusy(true);
   try {
-    await Promise.all(frames.map((f) => trySendToFrame(f.frameId, { type: 'UZ_REVERT' })));
+    await revertAll(tabId, frameSet);
     progressByFrame.clear();
     setStatus('Асл матн қайтарилди.');
   } finally {
@@ -333,7 +249,7 @@ els.revert.addEventListener('click', async () => {
 els.showSummary.addEventListener('click', async () => {
   setBusy(true);
   try {
-    const response = await sendToFrame(TOP_FRAME, { type: 'UZ_SHOW_SUMMARY' });
+    const response = await sendToFrame(tabId, TOP_FRAME, { type: 'UZ_SHOW_SUMMARY' });
     setStatus(response.hasSummary ? 'Хулоса саҳифада кўрсатилди.' : 'Ҳали хулоса қилинмаган.');
   } catch (err) {
     setStatus(err.message, true);
@@ -401,13 +317,13 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   }
 
   try {
-    await collectFrames();
+    frameSet = await attach(tabId);
     renderDetection();
     renderFrames();
     renderSelection();
 
     // Popup ёпилиб очилган бўлса, иш ҳали давом этаётган бўлиши мумкин
-    for (const frame of frames) {
+    for (const frame of frameSet.frames) {
       if (frame.state) progressByFrame.set(frame.frameId, frame.state);
       if (frame.state?.status === 'running') setBusy(true);
     }

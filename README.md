@@ -1,13 +1,31 @@
-# Ўзбекча таржимон (Кирилл)
+<p align="center">
+  <img src="icons/icon128.png" alt="Ўзбекча таржимон" width="104" height="104">
+</p>
 
-Веб-саҳифанинг асосий матнини **кирилл ўзбекчага** ўгирувчи Chrome кенгайтмаси.
-Лотин ўзбекча учун офлайн транслитерация, қолган тиллар учун OpenRouter.
-
-<sub>*Chrome extension that translates web page content into Uzbek (Cyrillic).
-Offline transliteration for Latin Uzbek, OpenRouter LLM for everything else.*</sub>
+<h1 align="center">Ўзбекча таржимон (Кирилл)</h1>
 
 <p align="center">
-  <img src="screenshot/popup-config.jpg" alt="Кенгайтма ойнаси" width="360">
+  Веб-саҳифанинг асосий матнини <b>кирилл ўзбекчага</b> ўгирувчи Chrome кенгайтмаси.<br>
+  Лотин ўзбекча учун офлайн транслитерация, қолган тиллар учун OpenRouter.
+</p>
+
+<p align="center">
+  <a href="https://github.com/nurmuhammad/cyrillic-uzbek-extention/releases/latest">
+    <img alt="Релиз" src="https://img.shields.io/github/v/release/nurmuhammad/cyrillic-uzbek-extention?style=flat-square&color=038FD8&label=%D1%80%D0%B5%D0%BB%D0%B8%D0%B7">
+  </a>
+  <a href="LICENSE">
+    <img alt="Лицензия" src="https://img.shields.io/github/license/nurmuhammad/cyrillic-uzbek-extention?style=flat-square&color=0DA74C&label=%D0%BB%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F">
+  </a>
+  <img alt="Manifest V3" src="https://img.shields.io/badge/Manifest-V3-12233A?style=flat-square">
+</p>
+
+<p align="center">
+  <sub><i>Chrome extension that translates web page content into Uzbek (Cyrillic).<br>
+  Offline transliteration for Latin Uzbek, OpenRouter LLM for everything else.</i></sub>
+</p>
+
+<p align="center">
+  <img src="screenshots/popup.jpg" alt="Кенгайтма ойнаси" width="360">
 </p>
 
 Таржима саҳифанинг ўзида, жойида алмаштирилади. Асл матн хотирада сақланиб
@@ -27,6 +45,18 @@ Offline transliteration for Latin Uzbek, OpenRouter LLM for everything else.*</s
 ойна тепасида «Лотин ўзбекча - LLM'сиз ўгириш мумкин» каби ёзув чиқади ва
 тавсия этилган тугма кўк рангда ажратилади.
 
+### Ойнани очмасдан ҳам ишлайди
+
+| Усул | Нима қилади |
+|---|---|
+| Ўнг тугма → меню | Белгиланган матн ёки бутун саҳифа учун ўгириш ва қайтариш |
+| `Alt+Shift+U` | LLM билан таржима |
+| `Alt+Shift+L` | Транслитерация |
+| `Alt+Shift+O` | Асл матнга қайтариш |
+
+Қисқартма босилганда саҳифада матн белгиланган бўлса, фақат ўша қисм
+ўгирилади. Қисқартмаларни `chrome://extensions/shortcuts` дан ўзгартирасиз.
+
 ---
 
 ## Ўрнатиш
@@ -37,7 +67,7 @@ Offline transliteration for Latin Uzbek, OpenRouter LLM for everything else.*</s
 **1.** Repo'ни юклаб олинг:
 
 ```bash
-git clone https://github.com/<foydalanuvchi>/uzbek-cyrillic-translator.git
+git clone https://github.com/nurmuhammad/cyrillic-uzbek-extention.git
 ```
 
 ёки GitHub'даги яшил **Code** тугмаси → **Download ZIP** → архивни очинг.
@@ -61,7 +91,7 @@ git clone https://github.com/<foydalanuvchi>/uzbek-cyrillic-translator.git
 Иконкага босинг → пастдаги **Созламалар** ҳаволаси.
 
 <p align="center">
-  <img src="screenshot/settings.jpg" alt="Созламалар саҳифаси" width="560">
+  <img src="screenshots/settings.jpg" alt="Созламалар саҳифаси" width="560">
 </p>
 
 ### API-калит
@@ -89,8 +119,12 @@ OpenRouter'да ҳисобингизга озгина маблағ солиб қ
 | **Қамров** | Фақат асосий матн (тавсия) ёки бутун саҳифа |
 | **Бир сўровдаги белгилар** | Катта қиймат - камроқ сўров, лекин хато бўлса кўпроқ матн йўқолади |
 | **Параллел сўровлар** | Кўп бўлса тезроқ, лекин 429 (rate limit) хатоси эҳтимоли ортади |
+| **Янги юкланган матн** | Чексиз лентада янги келган матнни ҳам ўзи таржима қилади |
 | **Кэш** | Ёқилган ҳолда қолдиринг - пулни шу тежайди |
 | **Хулоса ҳажми** | Қисқа / Ўрта / Батафсил |
+
+Созламаларда яна **харажат ҳисоби** (бугун / шу ой / жами) ва **кэш рўйхати**
+бор - кэшдаги ҳар бир ёзувни кўриб, кераксизини алоҳида ўчириш мумкин.
 
 ---
 
@@ -136,8 +170,9 @@ OpenRouter'да ҳисобингизга озгина маблағ солиб қ
 - Транслитерация лотин **ўзбекча** учун мўлжалланган. Инглизча саҳифада уни
   боссангиз, инглиз сўзлари ҳам кирилл ҳарфлар билан ёзилиб қолади - бундай
   саҳифада «LLM билан таржима» ни ишлатинг.
-- Саҳифа таржимадан кейин динамик равишда янги матн юкласа (масалан, «яна
-  юклаш» тугмаси), у таржима қилинмайди - тугмани яна босинг.
+- Динамик юкланган матн (чексиз лента, «яна юклаш») ҳам автоматик таржима
+  қилинади, лекин битта саҳифада кўпи билан 20 марта - назоратсиз харажатнинг
+  олдини олиш учун. Созламалардан ўчириб қўйиш мумкин.
 - Узун саҳифада хулоса бўлакларга бўлиниб, кейин бирлаштирилади - бунда бир
   нечта сўров кетади.
 - `<pre>`, `<code>`, форма майдонлари ва яширин элементлар атайлаб тегилмайди.
@@ -151,7 +186,7 @@ OpenRouter'да ҳисобингизга озгина маблағ солиб қ
 
 ## Тарқатиш
 
-Кенгайтмада build қадами йўқ, лекин тарқатишда `screenshot/`, `tools/` ва `.md`
+Кенгайтмада build қадами йўқ, лекин тарқатишда `screenshots/`, `tools/` ва `.md`
 файллар кераксиз. Тоза нусхани `ready/` жилдига йиғадиган скрипт бор:
 
 ```bash
@@ -171,7 +206,7 @@ powershell -File tools/build.ps1 -Zip
 
 ## Иконка
 
-Ишлатилаётган дизайн - `icons/proposals/f-flag-letter.svg`: байроқ йўлаклари ва
+Ишлатилаётган дизайн - `icons/icon.svg`: байроқ йўлаклари ва
 устида кирилл **Ў**. Ранглар: юқори `#038FD8`, паст `#0DA74C`, қизил `#CE1126`,
 ҳарф ва рамка `#12233A`.
 
@@ -183,8 +218,7 @@ powershell -File tools/build-icons.ps1
 
 Ҳарф шрифтдан эмас, чизиқлардан ясалади (ҳар машинада бир хил чиқиши учун) ва
 16px учун алоҳида содалаштирилади: қизил ингичка йўлаклар тушириб қолдирилади,
-ҳарф қалинроқ чизилади. Бошқа вариантларни `icons/proposals/preview.html` ни
-браузерда очиб кўришингиз мумкин.
+ҳарф қалинроқ чизилади. 
 
 ---
 
@@ -203,7 +237,7 @@ src/popup/               тугмалар ойнаси
 src/options/             созламалар саҳифаси
 icons/                   иконкалар ва вариантлар
 tools/                   build скриптлари
-screenshot/              README учун расмлар
+screenshots/             README учун расмлар
 ```
 
 Техник тафсилотлар ва архитектура қарорлари - [CLAUDE.md](CLAUDE.md) да.

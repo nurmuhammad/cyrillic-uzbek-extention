@@ -55,6 +55,41 @@
         <label for="concurrency">Параллел сўровлар</label>
         <input id="concurrency" type="number" min="1" max="10" step="1" />
         <p class="note">Кўп бўлса тезроқ, лекин 429 (rate limit) хатоси эҳтимоли ортади.</p>
+
+        <label class="check">
+          <input id="autoDynamic" type="checkbox" />
+          Янги юкланган матн ўзи таржима қилинсин
+        </label>
+        <p class="note">
+          Чексиз лента ёки «яна юклаш» тугмаси билан келган матнни ҳам таржима
+          қилади. Битта саҳифада кўпи билан 20 марта ишлайди - назоратсиз
+          харажатнинг олдини олиш учун.
+        </p>
+      </section>
+
+      <section>
+        <h2>Харажат</h2>
+
+        <table class="usage">
+          <thead>
+            <tr><th>Давр</th><th>Сўров</th><th>Кирувчи</th><th>Чиқувчи</th><th>Нарх</th></tr>
+          </thead>
+          <tbody id="usage-body">
+            <tr><td colspan="5">Юкланмоқда…</td></tr>
+          </tbody>
+        </table>
+
+        <p class="note">
+          Токенлар OpenRouter жавобидан олинади. Нарх ҳамма моделда ҳам
+          қайтарилавермайди - кўрсатилмаса, аниқ ҳисобни
+          <a href="https://openrouter.ai/activity" target="_blank" rel="noreferrer">openrouter.ai/activity</a>
+          дан кўринг.
+        </p>
+
+        <div class="actions">
+          <button id="reset-usage" type="button" class="ghost">Ҳисобни нолдан бошлаш</button>
+          <span id="usage-status" class="status"></span>
+        </div>
       </section>
 
       <section>
@@ -72,8 +107,15 @@
         </p>
 
         <div class="actions">
-          <button id="clear-cache" type="button" class="ghost">Кэшни тозалаш</button>
+          <button id="toggle-cache" type="button" class="ghost">Кэшни кўриш</button>
+          <button id="clear-cache" type="button" class="ghost">Ҳаммасини тозалаш</button>
           <span id="cache-stats" class="status"></span>
+        </div>
+
+        <div id="cache-browser" hidden>
+          <input id="cache-search" type="search" placeholder="Матн бўйича қидириш…" />
+          <p class="note" id="cache-count"></p>
+          <div id="cache-list" class="cache-list"></div>
         </div>
       </section>
 

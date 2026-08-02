@@ -81,7 +81,7 @@ async function chat({ apiKey, model, system, user, json = false, maxTokens = 409
         await sleep(400 * 2 ** attempt);
         continue;
       }
-      return text;
+      return { text, usage: normalizeUsage(data.usage) };
     }
 
     const raw = await res.text().catch(() => '');
@@ -120,6 +120,19 @@ async function chat({ apiKey, model, system, user, json = false, maxTokens = 409
   throw lastError || new OpenRouterError('Номаълум хато.');
 }
 
+/**
+ * OpenRouter жавобидаги usage. `cost` ҳамма моделда ҳам келавермайди -
+ * келмаса 0 бўлиб қолади ва фақат токенлар ҳисобланади.
+ */
+function normalizeUsage(usage) {
+  if (!usage) return { input: 0, output: 0, cost: 0 };
+  return {
+    input: Number(usage.prompt_tokens) || 0,
+    output: Number(usage.completion_tokens) || 0,
+    cost: Number(usage.cost) || 0,
+  };
+}
+
 function extractApiError(raw) {
   try {
     const parsed = JSON.parse(raw);
@@ -152,7 +165,7 @@ export function parseJsonLoose(text) {
  * Қайтади: шу тартибдаги, шу узунликдаги массив.
  */
 export async function translateSegments(segments, { apiKey, model, system, signal }) {
-  const raw = await chat({
+  const { text: raw, usage } = await chat({
     apiKey,
     model,
     system,
@@ -174,9 +187,10 @@ export async function translateSegments(segments, { apiKey, model, system, signa
     );
   }
   // Ҳар эҳтимолга қарши: бўш ёки нотўғри турдаги элементни аслига қайтарамиз
-  return out.map((value, i) =>
+  const normalized = out.map((value, i) =>
     typeof value === 'string' && value.trim() ? value : segments[i],
   );
+  return { segments: normalized, usage };
 }
 
 /** Эркин матн қайтарувчи сўров (хулоса учун). */

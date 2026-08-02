@@ -23,6 +23,10 @@ export const DEFAULTS = {
   // Хулоса ҳажми: 'short' | 'medium' | 'detailed'
   summaryStyle: 'medium',
 
+  // Саҳифа кейин янги матн юкласа (чексиз лента, «яна юклаш»), уни ҳам
+  // автоматик таржима қилиш
+  autoDynamic: true,
+
   // Саҳифада прогресс кўрсаткичи
   showBadge: true,
 };

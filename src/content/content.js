@@ -13,6 +13,7 @@
     batchChars: 1500,
     concurrency: 4,
     showBadge: true,
+    autoDynamic: true,
   };
 
   const state = {
@@ -35,6 +36,18 @@
   // fetch'ларни узиш учун керак.
   let runCounter = 0;
   let activeRun = null;
+
+  // Динамик контент кузатуви: саҳифа кейин янги матн юкласа (чексиз лента,
+  // «яна юклаш» тугмаси), уни ҳам ўзи таржима қилади.
+  let translatedNodes = new WeakSet();
+  let observer = null;
+  let observerRoot = null;
+  let observerMode = null;
+  let observerTimer = null;
+  let autoRuns = 0;
+
+  const AUTO_RUN_LIMIT = 20;      // назоратсиз харажатнинг олдини олади
+  const OBSERVE_DEBOUNCE_MS = 900;
 
   // ── Оверлей (badge + хулоса панели) ────────────────────────────────────────
 
@@ -212,6 +225,7 @@
 
   function rememberOriginal(item) {
     originals.push({ node: item.node, raw: item.raw });
+    translatedNodes.add(item.node);
   }
 
   function applyTranslation(item, text) {
@@ -249,11 +263,20 @@
 
   // ── Амаллар ────────────────────────────────────────────────────────────────
 
+  /** Ҳали таржима қилинмаган матн тугунлари. */
+  function collectFresh(root, range) {
+    return self.UZ_EXTRACT.collectNodes(root, range)
+      .filter((item) => !translatedNodes.has(item.node));
+  }
+
   async function runTranslit(ctx) {
     const { root, range } = resolveTarget(ctx);
-    const items = self.UZ_EXTRACT.collectNodes(root, range);
+    const items = collectFresh(root, range);
     if (!items.length) throw new Error('Таржима қилиш учун матн топилмади.');
+    await applyTranslit(items, ctx);
+  }
 
+  async function applyTranslit(items, ctx) {
     state.total = items.length;
     state.done = 0;
 
@@ -279,9 +302,12 @@
 
   async function runLlm(ctx) {
     const { root, range } = resolveTarget(ctx);
-    const items = self.UZ_EXTRACT.collectNodes(root, range);
+    const items = collectFresh(root, range);
     if (!items.length) throw new Error('Таржима қилиш учун матн топилмади.');
+    await applyLlm(items, ctx);
+  }
 
+  async function applyLlm(items, ctx) {
     const batches = buildBatches(items, settingsCache.batchChars);
     state.total = batches.length;
     state.done = 0;
@@ -346,8 +372,78 @@
     return range ? range.toString().trim() : self.UZ_EXTRACT.readableText(root);
   }
 
+  // ── Динамик контент ────────────────────────────────────────────────────────
+
+  function stopObserver() {
+    if (observer) observer.disconnect();
+    observer = null;
+    observerRoot = null;
+    observerMode = null;
+    clearTimeout(observerTimer);
+    observerTimer = null;
+  }
+
+  function startObserver(mode, ctx) {
+    // Белгиланган матн режимида кузатувнинг маъноси йўқ
+    if (!settingsCache.autoDynamic || ctx.range) return;
+
+    stopObserver();
+    autoRuns = 0;
+    observerMode = mode;
+    observerRoot = resolveTarget(null).root;
+
+    // characterData кузатилмайди: биз матнни nodeValue орқали алмаштирамиз,
+    // акс ҳолда ўз ўзгаришимиз кузатувни қайта ишга туширарди.
+    observer = new MutationObserver(onMutations);
+    observer.observe(observerRoot, { childList: true, subtree: true });
+  }
+
+  function onMutations(records) {
+    if (!records.some((r) => r.addedNodes && r.addedNodes.length)) return;
+    clearTimeout(observerTimer);
+    observerTimer = setTimeout(() => {
+      translateNewNodes().catch(() => { /* фон иши, шовқин қилмаймиз */ });
+    }, OBSERVE_DEBOUNCE_MS);
+  }
+
+  async function translateNewNodes() {
+    if (!observer || state.status === 'running' || !observerRoot.isConnected) return;
+
+    if (autoRuns >= AUTO_RUN_LIMIT) {
+      stopObserver();
+      showBadge('Автоматик таржима чегарага етди', { autoHideMs: 6000 });
+      return;
+    }
+
+    const items = collectFresh(observerRoot, null);
+    if (!items.length) return;
+
+    autoRuns += 1;
+    const ctx = { id: ++runCounter, cancelled: false, force: false, range: null };
+    activeRun = ctx;
+
+    state.status = 'running';
+    state.mode = observerMode;
+    state.error = null;
+    publish();
+
+    try {
+      if (observerMode === 'translit') await applyTranslit(items, ctx);
+      else await applyLlm(items, ctx);
+      state.status = ctx.cancelled ? 'cancelled' : 'done';
+    } catch (err) {
+      state.status = 'error';
+      state.error = err.message;
+      showBadge(err.message, { error: true, autoHideMs: 8000 });
+    } finally {
+      if (activeRun === ctx) activeRun = null;
+      publish();
+    }
+  }
+
   /** Жорий сеансни тўхтатади. Таржима қилиб улгурган матн жойида қолади. */
   function cancelRun() {
+    stopObserver();
     if (!activeRun || activeRun.cancelled) return false;
     activeRun.cancelled = true;
 
@@ -364,10 +460,12 @@
   }
 
   function revert() {
+    stopObserver();
     for (const entry of originals) {
       if (entry.node.isConnected) entry.node.nodeValue = entry.raw;
     }
     originals = [];
+    translatedNodes = new WeakSet();
     state.translated = false;
     state.status = 'idle';
     state.mode = null;
@@ -434,6 +532,9 @@
         error: Boolean(state.error),
         autoHideMs: state.error ? 8000 : 2500,
       });
+
+      // Саҳифа кейин янги матн юкласа, уни ҳам шу режимда таржима қиламиз
+      startObserver(mode, ctx);
     } catch (err) {
       // Бекор қилиш хато эмас
       if (ctx.cancelled || err.aborted) {
